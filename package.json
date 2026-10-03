@@ -1,3 +1,40 @@
 {
-  "name": "landing-effects"
+  "name": "landing-effects",
+  "version": "1.1.0",
+  "description": "Zero-dependency WebGL and Canvas2D visual effects for web pages: ASCII art, pixel reveal, halftone wave, ordered dither matrix, and contour lines.",
+  "author": "Akhil Bharati",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "node demo/server.mjs",
+    "start": "node demo/server.mjs",
+    "prepublishOnly": "tsc"
+  },
+  "keywords": [
+    "canvas",
+    "webgl",
+    "ascii",
+    "pixel-reveal",
+    "halftone",
+    "dither",
+    "contour",
+    "glitch",
+    "animation",
+    "typescript"
+  ],
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
 }
