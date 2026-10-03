@@ -335,6 +335,7 @@ export function createPixelReveal(opts: PixelRevealOptions): PixelRevealControll
             ctx.fillStyle = `rgba(40, 40, ${b}, 0.55)`
             ctx.fillRect(gx * currentBs + ox + 4, gy * currentBs, currentBs, currentBs)
           }
+
           ctx.fillStyle = formatPixelColor(r, g, b, a, 1 - glitchProgress)
           drawBlockShape(gx * currentBs + ox, gy * currentBs, currentBs)
         }
