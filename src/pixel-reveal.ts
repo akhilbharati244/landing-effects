@@ -397,3 +397,23 @@ export function createPixelReveal(opts: PixelRevealOptions): PixelRevealControll
     if (next.pattern !== undefined) state.pattern = next.pattern
     if (next.blockShape !== undefined) state.blockShape = next.blockShape
     if (next.theme !== undefined) state.theme = resolveTheme(next.theme)
+    if (next.tintStrength !== undefined) state.tintStrength = next.tintStrength
+    if (next.chromaticAberration !== undefined) {
+      state.chromaticAberration = next.chromaticAberration
+    }
+    if (next.hoverGlitch !== undefined) state.hoverGlitch = next.hoverGlitch
+    if (next.onComplete !== undefined) state.onComplete = next.onComplete
+
+    if (next.imageSrc && next.imageSrc !== prevImg) {
+      state.imageSrc = next.imageSrc
+      img.src = next.imageSrc
+    } else {
+      resetAnimation()
+    }
+  }
+
+  controller.exportDataURL = (type = 'image/png') => canvas.toDataURL(type)
+  controller.destroy = destroy
+
+  return controller
+}
