@@ -336,3 +336,63 @@ export function createPixelReveal(opts: PixelRevealOptions): PixelRevealControll
             ctx.fillRect(gx * currentBs + ox + 4, gy * currentBs, currentBs, currentBs)
           }
           ctx.fillStyle = formatPixelColor(r, g, b, a, 1 - glitchProgress)
+          drawBlockShape(gx * currentBs + ox, gy * currentBs, currentBs)
+        }
+      }
+
+      if (glitchProgress >= 1) phase = 2
+    } else {
+      ctx.clearRect(0, 0, w, h)
+      ctx.drawImage(img, 0, 0, w, h)
+      rafId = 0
+      state.onComplete?.()
+      return
+    }
+
+    rafId = requestAnimationFrame(draw)
+  }
+
+  img.onload = () => {
+    prepareImage()
+    resetAnimation()
+  }
+  img.src = state.imageSrc
+  if (img.complete && img.naturalWidth) {
+    img.onload(new Event('load'))
+  }
+
+  const destroy = () => {
+    paused = true
+    cancelAnimationFrame(rafId)
+    clearTimeout(delayTimer)
+    canvas.removeEventListener('mousemove', onMouseMove)
+  }
+
+  const controller = (() => {
+    destroy()
+  }) as PixelRevealController
+
+  controller.pause = () => {
+    paused = true
+    cancelAnimationFrame(rafId)
+  }
+  controller.resume = () => {
+    if (!paused) return
+    paused = false
+    if (phase < 2) {
+      rafId = requestAnimationFrame(draw)
+    }
+  }
+  controller.replay = () => {
+    paused = false
+    resetAnimation()
+  }
+  controller.setOptions = (next: Partial<PixelRevealOptions>) => {
+    const prevImg = state.imageSrc
+    if (next.blockSize !== undefined) state.blockSize = next.blockSize
+    if (next.pixelsPerFrame !== undefined) state.pixelsPerFrame = next.pixelsPerFrame
+    if (next.glitchRegion !== undefined) state.glitchRegion = next.glitchRegion
+    if (next.delay !== undefined) state.delay = next.delay
+    if (next.pattern !== undefined) state.pattern = next.pattern
+    if (next.blockShape !== undefined) state.blockShape = next.blockShape
+    if (next.theme !== undefined) state.theme = resolveTheme(next.theme)
