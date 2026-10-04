@@ -604,3 +604,195 @@ function createCanvas2DRenderer(
     targetNY = (e.clientY / window.innerHeight - 0.5) * 2
   }
   document.addEventListener('mousemove', onMouseMove, { passive: true })
+
+  const sourceImg = new Image()
+  sourceImg.crossOrigin = 'anonymous'
+  sourceImg.src = state.imageSrc
+
+  function setup() {
+    const rect = canvas.getBoundingClientRect()
+    const dpr = window.devicePixelRatio || 1
+    w = rect.width || canvas.width || 400
+    h = rect.height || canvas.height || 400
+    canvas.width = w * dpr
+    canvas.height = h * dpr
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.font = `${state.fontSize}px ${state.fontFamily}`
+    charW = Math.max(4, ctx.measureText('0').width)
+    charH = state.fontSize
+    cols = Math.ceil(w / charW)
+    rows = Math.ceil(h / charH)
+    cellSeed = new Float32Array(cols * rows)
+    for (let i = 0; i < cols * rows; i++) cellSeed[i] = Math.random()
+    sampleSource()
+  }
+
+  function sampleSource() {
+    if (!sourceImg.complete || !sourceImg.naturalWidth) return
+    const off = document.createElement('canvas')
+    off.width = cols
+    off.height = rows
+    const oc = off.getContext('2d')!
+    const dw = cols * state.scale
+    const dh = rows * state.scale
+    oc.drawImage(
+      sourceImg,
+      0,
+      0,
+      sourceImg.naturalWidth,
+      sourceImg.naturalHeight,
+      (cols - dw) / 2,
+      (rows - dh) / 2,
+      dw,
+      dh,
+    )
+    pixelData = oc.getImageData(0, 0, cols, rows).data
+    sampleW = cols
+  }
+
+  function triggerGlitch() {
+    glitchRows.clear()
+    const count = Math.max(1, Math.round(rows * state.glitchIntensity * 0.4))
+    for (let g = 0; g < count; g++) {
+      const startRow = Math.floor(Math.random() * rows)
+      const ht = 1 + Math.floor(Math.random() * 3)
+      const offset = (Math.random() - 0.5) * charW * 6
+      for (let r = startRow; r < Math.min(rows, startRow + ht); r++) {
+        glitchRows.set(r, offset)
+      }
+    }
+    setTimeout(() => glitchRows.clear(), 60 + Math.random() * 100)
+  }
+
+  function draw() {
+    if (paused) return
+    if (!pixelData) {
+      rafId = requestAnimationFrame(draw)
+      return
+    }
+
+    cursorNX += (targetNX - cursorNX) * 0.05
+    cursorNY += (targetNY - cursorNY) * 0.05
+    ctx.clearRect(0, 0, w, h)
+    ctx.font = `${state.fontSize}px ${state.fontFamily}`
+    ctx.textBaseline = 'top'
+    revealT += 1 / 60
+
+    if (revealT > nextGlitchTime && state.glitchIntensity > 0) {
+      triggerGlitch()
+      nextGlitchTime = revealT + 0.25 + Math.random() * 0.65
+    }
+
+    const midX = cols / 2
+    const midY = rows / 2
+
+    for (let row = 0; row < rows; row++) {
+      const rowGlitch = glitchRows.get(row) || 0
+      for (let col = 0; col < cols; col++) {
+        const pi = (row * sampleW + col) * 4
+        const r = pixelData[pi]!
+        const g = pixelData[pi + 1]!
+        const bv = pixelData[pi + 2]!
+        const a = pixelData[pi + 3]!
+        if (a < 10) continue
+        let lum = (r * 0.299 + g * 0.587 + bv * 0.114) / 255
+        if (state.invertLuminance) lum = 1 - lum
+        lum = Math.min(1, lum * state.brightnessBoost * (a / 255))
+        lum = Math.round(lum * state.posterize) / state.posterize
+        if (lum < 0.03) continue
+
+        const nx = col / cols
+        const ny = row / rows
+        let waveDist = Math.min(nx, 1 - nx)
+        if (state.revealMode === 'center-out') {
+          waveDist = Math.hypot(nx - 0.5, ny - 0.5) * 0.7
+        } else if (state.revealMode === 'top-down') {
+          waveDist = ny * 0.6
+        } else if (state.revealMode === 'diagonal') {
+          waveDist = (nx + ny) * 0.35
+        }
+
+        const cellIdx = row * cols + col
+        const cellThreshold = waveDist + cellSeed[cellIdx]! * 0.15
+        const revealWave = revealT * 0.35
+        if (cellThreshold > revealWave) continue
+        const cellReveal = Math.min(1, (revealWave - cellThreshold) * 6)
+        const px = col * charW + cursorNX * state.parallaxStrength + rowGlitch
+        const py = row * charH + cursorNY * state.parallaxStrength * 0.6
+        const ci = Math.min(state.chars.length - 1, Math.floor(lum * (state.chars.length - 1)))
+        const distFromCenter = Math.hypot((col - midX) / midX, (row - midY) / midY)
+        const depthFade = Math.max(0.3, 1 - distFromCenter * 0.5)
+        const bright = lum * cellReveal * depthFade
+
+        ctx.fillStyle = state.colorFn
+          ? state.colorFn(bright, distFromCenter)
+          : sampleThemeColor(state.theme, bright)
+        ctx.fillText(state.chars[ci]!, px, py)
+      }
+    }
+    rafId = requestAnimationFrame(draw)
+  }
+
+  function onReady() {
+    setup()
+    rafId = requestAnimationFrame(draw)
+  }
+  sourceImg.onload = onReady
+  if (sourceImg.complete && sourceImg.naturalWidth) onReady()
+  window.addEventListener('resize', setup)
+
+  const destroy = () => {
+    paused = true
+    cancelAnimationFrame(rafId)
+    document.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('resize', setup)
+  }
+
+  const controller = (() => {
+    destroy()
+  }) as AsciiController
+
+  controller.pause = () => {
+    paused = true
+    cancelAnimationFrame(rafId)
+  }
+  controller.resume = () => {
+    if (!paused) return
+    paused = false
+    rafId = requestAnimationFrame(draw)
+  }
+  controller.replay = () => {
+    revealT = 0
+    if (paused) {
+      paused = false
+      rafId = requestAnimationFrame(draw)
+    }
+  }
+  controller.triggerGlitch = triggerGlitch
+  controller.setOptions = (next: Partial<AsciiOptions>) => {
+    if (next.charsetPreset) state.chars = CHARSET_PRESETS[next.charsetPreset]
+    else if (next.chars !== undefined) state.chars = next.chars
+    if (next.theme !== undefined) state.theme = resolveTheme(next.theme)
+    if (next.fontSize !== undefined) state.fontSize = next.fontSize
+    if (next.fontFamily !== undefined) state.fontFamily = next.fontFamily
+    if (next.brightnessBoost !== undefined) state.brightnessBoost = next.brightnessBoost
+    if (next.posterize !== undefined) state.posterize = next.posterize
+    if (next.parallaxStrength !== undefined) state.parallaxStrength = next.parallaxStrength
+    if (next.scale !== undefined) state.scale = next.scale
+    if (next.revealMode !== undefined) state.revealMode = next.revealMode
+    if (next.glitchIntensity !== undefined) state.glitchIntensity = next.glitchIntensity
+    if (next.invertLuminance !== undefined) state.invertLuminance = next.invertLuminance
+    if (next.colorFn !== undefined) state.colorFn = next.colorFn
+    if (next.imageSrc && next.imageSrc !== state.imageSrc) {
+      state.imageSrc = next.imageSrc
+      revealT = 0
+      sourceImg.src = next.imageSrc
+    } else {
+      setup()
+    }
+  }
+  controller.exportDataURL = (type = 'image/png') => canvas.toDataURL(type)
+  controller.destroy = destroy
+
+  return controller
+}
