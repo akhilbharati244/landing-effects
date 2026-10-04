@@ -763,6 +763,7 @@ function createCanvas2DRenderer(
   }
   controller.replay = () => {
     revealT = 0
+    nextGlitchTime = 0
     if (paused) {
       paused = false
       rafId = requestAnimationFrame(draw)
